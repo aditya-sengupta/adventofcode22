@@ -17,7 +17,10 @@ impl DirectoryTree {
         self.current = pdir.unwrap().to_string();
     }
 
-    fn new_child(&mut self, word: String) {
+    fn new_child(&mut self, mut word: String) {
+        while self.parents.contains_key(&word) {
+            word.push_str("_"); // oh this sucks
+        }
         self.parents.insert(word.clone(), self.current.to_string());
         let nch = match self.nchildren.get(&self.current) {
             Some(p) => p,
@@ -87,7 +90,7 @@ fn day7_01() {
         }
     }
     tree.reroot();
-    println!("{}", tree.parents.len());
+
     while tree.parents.len() > 0 {
         let mut dirs_to_remove: Vec<String> = vec![];
         let mut parents_to_remove: Vec<String> = vec![];
@@ -114,14 +117,12 @@ fn day7_01() {
                 }
                 dirs_to_remove.push(dir.clone());
                 parents_to_remove.push(parent.clone());
-                println!("resolved the {} to {} mapping", dir, parent);
             }
         }
         for (dir, parent) in zip(dirs_to_remove, parents_to_remove) {
             tree.parents.remove(&dir);
             tree.nchildren.remove(&parent);
         }
-        println!("{}", tree.parents.len());
     }
     let mut total_size = 0;
     for (_, size) in tree.sizes {
