@@ -43,6 +43,18 @@ impl DirectoryTree {
     }
 }
 
+fn delete_size(sizes: &HashMap<String, i32>, used_size: i32) -> i32 {
+    let free_space = 70000000 - used_size;
+    let delete_size = (30000000 - free_space).max(0);
+    let mut current_delete_size: i32 = used_size;
+    for (_, &size) in sizes.iter().clone() {
+        if size < current_delete_size && size >= delete_size {
+            current_delete_size = size;
+        }
+    }
+    return current_delete_size
+}
+
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 where P: AsRef<Path>, {
     let file = File::open(filename)?;
@@ -59,16 +71,18 @@ fn parse_words(ip: String) -> Vec<String> {
 }
 
 fn main() {
-    day7_01();
+    day7();
 }
 
-fn day7_01() {
+fn day7() {
     let mut tree = DirectoryTree {
         sizes: HashMap::new(),
         parents: HashMap::new(),
         nchildren: HashMap::new(),
         current: "".to_string()
     };
+    let mut used_size = 0;
+
     if let Ok(lines) = read_lines("./day7") {
         for line in lines {
             if let Ok(ip) = line {
@@ -85,6 +99,7 @@ fn day7_01() {
                     // file name
                     let fsize = words[0].parse::<i32>().unwrap();
                     tree.add_size(fsize);
+                    used_size += fsize;
                 }
             }
         }
@@ -125,8 +140,9 @@ fn day7_01() {
         }
     }
     let mut total_size = 0;
-    for (_, size) in tree.sizes {
-        if size <= 100000 { total_size += size }
+    for (_, size) in tree.sizes.iter().clone() {
+        if size <= &100000 { total_size += size }
     }
-    println!("{}", total_size);
+    println!("Total size {}", total_size);
+    println!("Min size to delete {}", delete_size(&tree.sizes, used_size));
 }
