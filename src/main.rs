@@ -1,8 +1,6 @@
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
-extern crate priority_queue;
-use priority_queue::PriorityQueue;
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 where P: AsRef<Path>, {
@@ -11,82 +9,147 @@ where P: AsRef<Path>, {
 }
 
 fn main() {
-    day12(true);
-    day12(false);
+    // day14_01("./day14");
+    day14_02("./day14_test");
 }
 
-fn neighbors(grid: &Vec<Vec<u8>>, vis: &Vec<Vec<bool>>, current: (usize, usize), xm: usize, ym: usize, up: bool) -> Vec<(usize, usize)> {
-    let mut neighbors: Vec<(usize, usize)> = Vec::new();
-    if current.0 != 0 { neighbors.push((current.0 - 1, current.1)) }
-    if current.0 != ym - 1 { neighbors.push((current.0 + 1, current.1)) }
-    if current.1 != 0 { neighbors.push((current.0, current.1 - 1)) }
-    if current.1 != xm - 1 { neighbors.push((current.0, current.1 + 1)) }
-    let c = grid[current.0][current.1] as u8;
-    if up {
-        neighbors.retain(|n| c > grid[n.0][n.1] || grid[n.0][n.1] - c <= 1);
-    } else {
-        neighbors.retain(|n| c < grid[n.0][n.1] || c - grid[n.0][n.1] <= 1);
-    }
-    neighbors.retain(|n| !vis[n.0][n.1]);
-    neighbors
-}
-
-fn terminate(grid: &Vec<Vec<u8>>, current: (usize, usize), end: (usize, usize), up: bool) -> bool {
-    if up {
-        return current == end
-    } else {
-        return grid[current.0][current.1] == 97 // a
-    }
-}
-
-fn day12(up: bool) {
-    let mut grid: Vec<Vec<u8>> = vec![];
-    let mut end = (0, 0);
-    let mut pq: PriorityQueue<(usize, usize), i32> = PriorityQueue::new();
-    let s = 'S' as u8;
-    let e = 'E' as u8;
-    let mut start = (0, 0);
-    if let Ok(lines) = read_lines("./day12") {
-        let mut i = 0;
+fn grid_size(fname: &str, floor: bool) -> (Vec<i32>, Vec<i32>) {
+    let mut mins = vec![i32::MAX, 0];
+    let mut maxes = vec![0, 0];
+    if let Ok(lines) = read_lines(fname) {
         for line in lines { 
             if let Ok(ip) = line {
-                grid.push(vec![]);
-                for (j, b) in ip.as_bytes().iter().enumerate() {
-                    let c: u8 = *b;
-                    if c == s { 
-                        if up { start = (i, j) }
-                        grid[i].push('a' as u8);
-                    } else if c == e { 
-                        if up { end = (i, j) } else { start = (i, j) } 
-                        grid[i].push('z' as u8)
-                    } else {
-                        grid[i].push(c);
+                for item in ip.split("->") {
+                    for (j, num) in item.split(",").enumerate() {
+                        let n = num.trim().parse::<i32>().unwrap();
+                        mins[j] = mins[j].min(n);
+                        maxes[j] = maxes[j].max(n);
                     }
                 }
             }
-            i += 1;
         }
     }
-    let xm = grid[0].len();
-    let ym = grid.len();
-    let mut visited: Vec<Vec<bool>> = vec![vec![false; xm]; ym];
-    let mut distance: Vec<Vec<i32>> = vec![vec![i32::MAX; grid[0].len()]; grid.len()];
-    distance[start.0][start.1] = 0;
-    let mut current = start;
-    let mut currdist = distance[current.0][current.1] as i32;
-    while !terminate(&grid, current, end, up) {
-        let neighbors = neighbors(&grid, &visited, current, xm, ym, up);
-        for n in neighbors {
-            let d = distance[n.0][n.1].min(currdist + 1);
-            distance[n.0][n.1] = d;
-            pq.push(n, -d);
-        }
-        visited[current.0][current.1] = true;
-        match pq.pop() {
-            Some(p) => current = p.0,
-            None => ()
-        }
-        currdist = distance[current.0][current.1] as i32;
+    if floor {
+        maxes[1] += 2;
     }
-    println!("{}", currdist);
+    return (maxes, mins)
+}
+
+fn transpose<T>(v: Vec<Vec<T>>) -> Vec<Vec<T>>
+where
+    T: Clone,
+{
+    assert!(!v.is_empty());
+    (0..v[0].len())
+        .map(|i| v.iter().map(|inner| inner[i].clone()).collect::<Vec<T>>())
+        .collect()
+}
+
+fn make_grid(fname: &str, floor: bool) -> Vec<Vec<bool>> {
+    let lims: (Vec<i32>, Vec<i32>) = grid_size(fname, floor);
+    let mut grid = vec![vec![false; (lims.0[1] - lims.1[1] + 1) as usize]; (lims.0[0] - lims.1[0] + 1) as usize];
+    if let Ok(lines) = read_lines(fname) {
+        for line in lines { 
+            if let Ok(ip) = line {
+                let mut last_point: [i32; 2] = [-1, -1];
+                for item in ip.split("->") {
+                    let mut coords = [0, 0];
+                    for (j, num) in item.split(",").enumerate() {
+                        let n = num.trim().parse::<i32>().unwrap();
+                        coords[j] = n - lims.1[j];
+                    }
+                    grid[coords[0] as usize][coords[1] as usize] = true;
+                    if last_point[0] == coords[0] && last_point[1] != coords[1] {
+                        let l = last_point[1].min(coords[1]);
+                        let u = last_point[1].max(coords[1]);
+                        for y in l..u {
+                            grid[coords[0] as usize][y as usize] = true;
+                        }
+                    } else if last_point[0] != coords[0] && last_point[1] == coords[1] {
+                        let l = last_point[0].min(coords[0]);
+                        let u = last_point[0].max(coords[0]);
+                        for x in l..u {
+                            grid[x as usize][coords[1] as usize] = true;
+                        }
+                    }
+                    last_point = coords;
+                }
+            }
+        }
+    }
+    return transpose(grid);
+}
+
+fn filled(grid: &Vec<Vec<bool>>, sand: &Vec<Vec<bool>>, coords: [usize; 2]) -> bool {
+    grid[coords[0]][coords[1]] || sand[coords[0]][coords[1]]
+}
+
+fn day14_01(fname: &str) {
+    let lims: (Vec<i32>, Vec<i32>) = grid_size(fname, false);
+    let grid = make_grid(fname, false);
+    let mut sand = grid.clone();
+    let source: [usize; 2] = [0, 500 - lims.1[0] as usize];
+    let mut current_sand = source;
+    let mut move_possible: bool;
+    let mut outflow: bool = false;
+    let mut n = 0;
+    let ulim = grid.len();
+    let rlim = grid[0].len();
+    while !outflow {
+        move_possible = true;
+        while move_possible {
+            current_sand[0] += 1;
+            if current_sand[0] == ulim {
+                outflow = true;
+                break;
+            }
+            // try down
+            if filled(&grid, &sand, current_sand) {
+                if current_sand[1] == 0 {
+                    outflow = true;
+                    break;
+                }
+                current_sand[1] -= 1;
+                // try down-left
+                if filled(&grid, &sand, current_sand) {
+                    current_sand[1] += 2;
+                    if current_sand[1] == rlim {
+                        outflow = true;
+                        break
+                    }
+                    // try down-right
+                    if filled(&grid, &sand, current_sand) {
+                        current_sand[0] -= 1;
+                        current_sand[1] -= 1;
+                        sand[current_sand[0]][current_sand[1]] = true;
+                        current_sand = source;
+                        move_possible = false;
+                        n += 1;
+                    }
+                }
+            }
+        }
+    }
+    println!("{}", n);
+    // print(&grid, &sand);
+}
+
+fn day14_02(fname: &str) {
+    let grid = make_grid(fname, true);
+    print(&grid, &grid);
+}
+
+fn print(grid: &Vec<Vec<bool>>, sand: &Vec<Vec<bool>>) {
+    for line in 0..grid.len() {
+        for p in 0..grid[line].len() {
+            print!("{}", match grid[line][p] {
+                true => "#",
+                false => match sand[line][p] {
+                    true => "o",
+                    false => "."
+                }
+            })
+        }
+        println!();
+    }
 }
