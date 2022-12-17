@@ -9,6 +9,7 @@ extern crate regex;
 use regex::Regex;
 extern crate bimap;
 use bimap::{BiMap,BiHashMap};
+use std::thread;
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 where P: AsRef<Path>, {
@@ -17,7 +18,7 @@ where P: AsRef<Path>, {
 }
 
 fn main() {
-    day16_01("day16");
+    day16_01("day16_test");
 }
 struct Network {
     graph: Graph<String, ()>,
@@ -26,15 +27,34 @@ struct Network {
     name_inds: BiHashMap<String, NodeIndex>
 }
 
+impl Network {
+    fn clone(self) -> Network {
+        let g = self.graph.clone();
+        let n = self.nnodes.clone();
+        let f = self.flow_rates.clone();
+        let i = self.name_inds.clone();
+        return Network { 
+            graph: g,
+            nnodes: n,
+            flow_rates: f,
+            name_inds: i
+        }
+    }
+}
+
 fn day16_01(fname: &str) {
     let network = make_network(fname);
-    let aa = *network.name_inds.get_by_left("AA").unwrap();
-    let mut open_valves = HashSet::<NodeIndex>::new();
-    for (v, f) in &network.flow_rates {
-        if *f == 0 { open_valves.insert(*v); }
-    }
-    let score = traverse(aa, open_valves, HashSet::<NodeIndex>::new(), 0, 0, &network);
-    println!("{}", score);
+    let aa = network.name_inds.get_by_left("AA").unwrap();
+    for n in (&network).graph.neighbors(*aa) {
+        let mut open_valves = HashSet::<NodeIndex>::new();
+        for (v, f) in &network.flow_rates.clone() {
+            if *f == 0 { open_valves.insert(*v); }
+        }
+        let recent_visits = HashSet::<NodeIndex>::from([*aa]);
+        thread::spawn(move || {
+            println!("{}", traverse(n, &open_valves, &recent_visits, 0, 29, &network))
+        });
+    };
 }
 
 fn make_network(fname: &str) -> Network {
@@ -79,14 +99,13 @@ fn make_network(fname: &str) -> Network {
 
 fn traverse(
     curr_node: NodeIndex,
-    open_valves: HashSet<NodeIndex>,
-    recent_visits: HashSet<NodeIndex>,
+    open_valves: &HashSet<NodeIndex>,
+    recent_visits: &HashSet<NodeIndex>,
     score: i32,
-    time: i32,
+    time_left: i32,
     network: &Network
 ) -> i32 {
-    const MAX_TIME: i32 = 30;
-    if (time == MAX_TIME) || (open_valves.len() == network.nnodes) { 
+    if (time_left == 0) || (open_valves.len() == network.nnodes) { 
         return score 
     } else {
         let mut cost_to_go = 0;
@@ -98,10 +117,10 @@ fn traverse(
                 new_open_valves.insert(curr_node);
                 let path_reward = traverse(
                     curr_node, 
-                    new_open_valves, 
-                    HashSet::<NodeIndex>::new(), 
-                    score + (MAX_TIME - time - 1) * flow_rate,
-                    time + 1,
+                    &new_open_valves, 
+                    &HashSet::<NodeIndex>::new(), 
+                    score + (time_left - 1) * flow_rate,
+                    time_left - 1,
                     network
                 );
                 cost_to_go = cost_to_go.max(path_reward);
@@ -114,10 +133,10 @@ fn traverse(
                 new_recent_visits.insert(curr_node);
                 let path_reward = traverse(
                     n,
-                    open_valves.clone(),
-                    new_recent_visits,
+                    &open_valves.clone(),
+                    &new_recent_visits,
                     score,
-                    time + 1,
+                    time_left - 1,
                     network
                 );
                 cost_to_go = cost_to_go.max(path_reward);
