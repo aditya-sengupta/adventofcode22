@@ -117,7 +117,6 @@ fn traverse(
         let reward_here = *network.flow_rates.get(&curr_node).unwrap() * time_left;
         let mut cost_to_go = score + reward_here;
         for n in new_candidate_valves.clone() {
-            
             let d = *network.dists.get(&(curr_node, n)).unwrap();
             let path_reward = traverse(
                 n,
@@ -161,8 +160,8 @@ fn traverse_elephant(
         let nyour_dist = your_dist - step;
         let nelephant_dist = elephant_dist - step;
         let mut cost_to_go = score;
-        if nyour_dist <= 0 {
-            let mut new_candidate_valves = candidate_valves.clone();
+        let mut new_candidate_valves = candidate_valves.clone();
+        if nyour_dist == 0 {
             new_candidate_valves.remove(&your_node);
             let reward_here = *network.flow_rates.get(&your_node).unwrap() * time_left;
             cost_to_go = cost_to_go.max(score + reward_here);
@@ -181,16 +180,15 @@ fn traverse_elephant(
             cost_to_go = cost_to_go.max(path_reward);
             }
         }
-        if nelephant_dist <= 0 {
-            let mut new_candidate_valves = candidate_valves.clone();
+        if nelephant_dist == 0 {
             new_candidate_valves.remove(&elephant_node);
             let reward_here = *network.flow_rates.get(&elephant_node).unwrap() * time_left;
             cost_to_go = cost_to_go.max(score + reward_here);
             for n in new_candidate_valves.clone() {
                 let d = *network.dists.get(&(elephant_node, n)).unwrap();
                 let path_reward = traverse_elephant(
+                    your_node,
                     n,
-                    elephant_node,
                     nyour_dist - 1,
                     d,
                     &new_candidate_valves,
